@@ -4,3 +4,21 @@ pwd
 cd -
 pwd
 exit
+exit
+exit
+exit
+exit
+sleep
+sleep 10
+exit
+sleep 2
+exit
+pwd
+cs /home
+ls
+cd /home
+pwd
+ls
+cd -
+pwd
+exit

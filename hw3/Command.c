@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <sys/wait.h>
+#include <readline/history.h>
 
 #include "Command.h"
 #include "error.h"
@@ -17,7 +18,7 @@ typedef struct {
 #define BIDEFN(name) static void BINAME(name) (BIARGS)
 #define BIENTRY(name) {#name,BINAME(name)}
 
-static char *owd=0;
+static char *owd=0; 
 static char *cwd=0;
 
 static void builtin_args(CommandRep r, int n) {
@@ -27,11 +28,17 @@ static void builtin_args(CommandRep r, int n) {
     ERROR("wrong number of arguments to builtin command"); // warn
 }
 
+/**
+ * Exits program, should wait for child programs to finish before executing
+ */
 BIDEFN(exit) {
   builtin_args(r,0);
   *eof=1;
 }
 
+/**
+ * Prints the current working directory
+ */
 BIDEFN(pwd) {
   builtin_args(r,0);
   if (!cwd)
@@ -39,24 +46,78 @@ BIDEFN(pwd) {
   printf("%s\n",cwd);
 }
 
-BIDEFN(cd) {
-  builtin_args(r,1);
-  if (strcmp(r->argv[1],"-")==0) {
-    if (!owd) {
-      return;
-    }
-    char *twd=cwd;
-    cwd=owd;
-    owd=twd;
-  } else {
-    if (owd) free(owd);
-    owd=cwd;
-    cwd=strdup(r->argv[1]);
+/**
+ * Prints out command history
+ */
+BIDEFN(history) {
+  builtin_args(r,0);
+  HIST_ENTRY **list = history_list();
+
+  if (list == NULL) {
+    printf("No history available.\n");
+    return;
   }
-  if (cwd && chdir(cwd))
-    ERROR("chdir() failed"); // warn
+
+  for (int i = 0; list[i] != NULL; i++) {
+    printf("%d: %s\n", history_base + i, list[i]->line);
+  }
 }
 
+/**
+ * Changes the current working directory to a user-specified directory
+ * 
+ * Checks first if the directory path exits in current directory, then tries from ~ (home)
+ */
+BIDEFN(cd) {
+  builtin_args(r,1);
+
+  char *target = r->argv[1];
+  char path[1024];
+
+  char *home = getenv("HOME");
+
+  // Handle "-" (go back to previous directory before last directory change)
+  if (strcmp(target,"-")==0) {
+    if (!owd) {
+      ERROR("cd: Old working directory (owd) not set");
+      return;
+    }
+    snprintf(path, sizeof(path), "%s", owd);
+  }
+
+  // "~" specifier for home
+  else if (target[0] == '~') {
+    if (!home) {
+        ERROR("cd: $HOME not set");
+        return;
+    }
+    /* just ~ */      if (target[1] == '\0') snprintf(path, sizeof(path), "%s", home);
+    /* ~/...  */ else if (target[1] == '/')  snprintf(path, sizeof(path), "%s%s", home, target + 1);
+    /* other  */                        else snprintf(path, sizeof(path), "%s", target);
+    
+  }
+
+  // Relative or absolute
+  else {
+    snprintf(path, sizeof(path), "%s", target);
+  }
+
+  /**
+   * Now change the actual process working directory
+   */
+  if (chdir(path) == 0) {
+    if (owd) free(owd);
+    owd=cwd;
+    cwd= getcwd(NULL, 0);
+  } else {
+    ERROR("chdir() failed"); // warn
+  }
+}
+
+
+/**
+ * Specifies the built in commands the shell will be using
+ */
 static int builtin(BIARGS) {
   typedef struct {
     char *s;
@@ -65,6 +126,7 @@ static int builtin(BIARGS) {
   static const Builtin builtins[]={
     BIENTRY(exit),
     BIENTRY(pwd),
+    BIENTRY(history),
     BIENTRY(cd),
     {0,0}
   };
