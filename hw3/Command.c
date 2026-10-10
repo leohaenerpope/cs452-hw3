@@ -33,6 +33,7 @@ static void builtin_args(CommandRep r, int n) {
  */
 BIDEFN(exit) {
   builtin_args(r,0);
+  clear_history();
   *eof=1;
 }
 
@@ -72,6 +73,14 @@ BIDEFN(cd) {
   builtin_args(r,1);
 
   char *target = r->argv[1];
+  if (!target) {
+    target = getenv("HOME");
+    if (!target) {
+      printf("cd: $HOME not set");
+      return;
+    }
+  }
+
   char path[1024];
 
   char *home = getenv("HOME");
@@ -192,6 +201,7 @@ extern void execCommand(Command command, Pipeline pipeline, Jobs jobs,
     ERROR("fork() failed");
   if (pid==0) {
     child(r,fg);
+    exit(0);
   } else {
     if (fg) {
       int status;
