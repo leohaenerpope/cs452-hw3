@@ -1,0 +1,5 @@
+cd /etc ; pwd
+cd /usr | pwd
+pwd
+pwd | cat ; cd /tmp | pwd
+pwd

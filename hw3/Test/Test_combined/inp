@@ -1,0 +1,2 @@
+printf 3\n1\n2\n > numbers.txt ; cat < numbers.txt | sort > sorted.txt ; cat sorted.txt
+rm numbers.txt sorted.txt

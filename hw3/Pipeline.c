@@ -34,8 +34,45 @@ extern int sizePipeline(Pipeline pipeline) {
 
 static void execute(Pipeline pipeline, Jobs jobs, int *jobbed, int *eof) {
   PipelineRep r=(PipelineRep)pipeline;
-  for (int i=0; i<sizePipeline(r) && !*eof; i++)
-    execCommand(deq_head_ith(r->processes,i),pipeline,jobs,jobbed,eof,1);
+
+  int cmdamt = sizePipeline(r);
+  if (cmdamt == 0) return;
+
+  pid_t pids[cmdamt];
+  int pidsamt = 0;
+
+  int infd = STDIN_FILENO;
+  int pipefds[2];
+
+  for (int i=0; i<cmdamt && !*eof; i++) {
+    Command cmd = deq_head_ith(r->processes, i);
+
+    if (i < cmdamt - 1) {
+      if (pipe(pipefds) < 0) {
+        ERROR("pipe() failed");
+        return;
+      }
+    }
+
+    int outfd = (i < cmdamt - 1) ? pipefds[1] : STDOUT_FILENO;
+
+    pid_t pid = execCommand(cmd, pipeline, jobs, jobbed, eof, r->fg, infd, outfd);
+
+    if (pid > 0) pids[pidsamt++] = pid;
+
+    if (outfd != STDOUT_FILENO) close(pipefds[1]);
+    if (infd != STDIN_FILENO) close(infd);
+
+    if (i < cmdamt - 1) infd = pipefds[0];
+  }
+
+  if (r->fg) {
+    for (int i = 0; i < pidsamt; i++) {
+      int status;
+      waitpid(pids[i], &status, 0);
+    }
+  }
+  
 }
 
 extern void execPipeline(Pipeline pipeline, Jobs jobs, int *eof) {

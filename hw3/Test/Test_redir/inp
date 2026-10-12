@@ -1,0 +1,3 @@
+echo Hello > test_out.txt
+cat < test_out.txt
+rm test_out.txt

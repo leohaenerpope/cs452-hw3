@@ -1,0 +1,1 @@
+printf zebra\napple\nmonkey\n | grep e | sort

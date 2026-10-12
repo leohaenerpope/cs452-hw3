@@ -4,6 +4,7 @@
 #include <string.h>
 #include <sys/wait.h>
 #include <readline/history.h>
+#include <fcntl.h>
 
 #include "Command.h"
 #include "error.h"
@@ -11,6 +12,8 @@
 typedef struct {
   char *file;
   char **argv;
+  char * rin;
+  char * rout;
 } *CommandRep;
 
 #define BIARGS CommandRep r, int *eof, Jobs jobs
@@ -183,17 +186,93 @@ static char **getargs(T_words words) {
   return argv;
 }
 
+static void parse_redirection(CommandRep r) {
+  int i = 0;
+  while (r->argv[i] != NULL) {
+    if (strcmp(r->argv[i], "<") == 0) {
+      if (r->argv[i + 1] != NULL) {
+        r->rin = strdup(r->argv[i + 1]);
+        free(r->argv[i]);
+        free(r->argv[i + 1]);
+
+        int j = i;
+        while (r->argv[j + 2] != NULL) {
+          r->argv[j] = r->argv[j + 2];
+          j++;
+        }
+        r->argv[j] = NULL;
+        continue;
+      } else {
+        ERROR("Syntax error: expected filename after '<'");
+      }
+    } else if (strcmp(r->argv[i], ">") == 0) {
+      if (r->argv[i + 1] != NULL) {
+        r->rout = strdup(r->argv[i + 1]);
+        free(r->argv[i]);
+        free(r->argv[i + 1]);
+
+        int j = i;
+        while (r->argv[j + 2] != NULL) {
+          r->argv[j] = r->argv[j + 2];
+          j++;
+        }
+        r->argv[j] = NULL;
+        continue;
+      } else {
+        ERROR("Syntax error: expected filename after '>'");
+      }
+    }
+    i++;
+  }
+  r->file = r->argv[0];
+}
+
 extern Command newCommand(T_words words) {
   CommandRep r=(CommandRep)malloc(sizeof(*r));
   if (!r)
     ERROR("malloc() failed");
   r->argv=getargs(words);
   r->file=r->argv[0];
+  r->rin = NULL;
+  r->rout = NULL;
+
+  parse_redirection(r);
+
   return r;
 }
 
-static void child(CommandRep r, int fg) {
+static void child(CommandRep r, int fg, int infd, int outfd) {
   int eof=0;
+
+  if (infd != STDIN_FILENO) {
+    if (dup2(infd, STDIN_FILENO) < 0) ERROR("dup2 in_fd failed");
+    close(infd);
+  }
+  if (outfd != STDOUT_FILENO) {
+    if (dup2(outfd, STDOUT_FILENO) < 0) ERROR("dup2 out_fd failed");
+    close(outfd);
+  }
+
+  if (r->rin) { // input ---- < file
+    int fdin = open(r->rin, O_RDONLY);
+    if (fdin < 0) {
+      ERROR("Failed to open input file");
+      exit(1);
+    }
+    dup2(fdin, STDIN_FILENO);
+    close(fdin);
+  }
+
+  if (r->rout) { // output ---- > file
+    int fdout = open(r->rout, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+    if (fdout < 0) {
+      ERROR("Failed to open output file");
+      exit(1);
+    }
+    dup2(fdout, STDOUT_FILENO);
+    close(fdout);
+  }
+
   Jobs jobs=newJobs();
   if (builtin(r,&eof,jobs))
     return;
@@ -202,28 +281,27 @@ static void child(CommandRep r, int fg) {
   exit(0);
 }
 
-extern void execCommand(Command command, Pipeline pipeline, Jobs jobs,
-			int *jobbed, int *eof, int fg) {
+extern pid_t execCommand(Command command, Pipeline pipeline, Jobs jobs,
+			int *jobbed, int *eof, int fg, int infd, int outfd) {
   CommandRep r=command;
-  if (fg && builtin(r,eof,jobs))
-    return;
+
+  if (fg && infd == STDIN_FILENO && outfd == STDOUT_FILENO && !r->rin && !r->rout && builtin(r,eof,jobs))
+    return 0;
+
   if (!*jobbed) {
     *jobbed=1;
     addJobs(jobs,pipeline);
   }
+
   int pid=fork();
-  if (pid==-1)
-    ERROR("fork() failed");
+  if (pid==-1) ERROR("fork() failed");
+
   if (pid==0) {
-    child(r,fg);
+    child(r,fg, infd, outfd);
     exit(0);
-  } else {
-    if (fg) {
-      int status;
-      waitpid(pid, &status, 0);
-    }
   }
-    
+
+  return pid;
 }
 
 extern void freeCommand(Command command) {
@@ -232,6 +310,8 @@ extern void freeCommand(Command command) {
   while (*argv)
     free(*argv++);
   free(r->argv);
+  if (r->rin) free(r->rin);
+  if (r->rout) free(r->rout);
   free(r);
 }
 

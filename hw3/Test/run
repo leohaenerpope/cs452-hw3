@@ -1,6 +1,10 @@
 #!/bin/bash
 
-prg=./$1
+if [ "$VG" = "1" ]; then
+    prg="./vg ./$1"
+else
+    prg="./$1"
+fi
 
 for t in Test/Test_* ; do
     echo ${t##*/}

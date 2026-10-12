@@ -42,12 +42,12 @@ static T_word p_word() {
 
 static T_words p_words() {
   T_word word=p_word();
-  if (!word)
-    return 0;
+  if (!word) return 0;
+
   T_words words=new_words();
   words->word=word;
-  if (cmp("|") || cmp("&") || cmp(";"))
-    return words;
+
+  if (cmp("|") || cmp("&") || cmp(";"))  return words;
   words->words=p_words();
   return words;
 }

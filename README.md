@@ -14,12 +14,22 @@ a
 
 ## Compiling and Using
 
-a
+To run the shell, simply use
+`make run`
+and the shell terminal program will start up in the console.
 
 ## Testing
 
-a
+To run testing suite, simply use
+`make test`
+To run all the tests.
 
+Run valgrind with testing suite
+`VG=1 Test/run shell`
+
+Run valgrind with a shell session with
+`make`
+`./vg ./shell`
 
 ## Results
 
