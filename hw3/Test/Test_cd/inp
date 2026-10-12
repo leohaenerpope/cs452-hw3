@@ -1,0 +1,18 @@
+cd /etc
+pwd
+cd /var
+pwd
+cd -
+pwd
+cd -
+pwd
+cd ~
+cd -
+pwd
+cd ~/..
+pwd
+cd /var
+cd /etc
+cd /etc
+cd -
+pwd

@@ -72,6 +72,10 @@ BIDEFN(history) {
 BIDEFN(cd) {
   builtin_args(r,1);
 
+  if (!cwd) {
+    cwd = getcwd(NULL, 0);
+  }
+
   char *target = r->argv[1];
   if (!target) {
     target = getenv("HOME");
@@ -115,9 +119,20 @@ BIDEFN(cd) {
    * Now change the actual process working directory
    */
   if (chdir(path) == 0) {
+    char *newcwd = getcwd(NULL, 0);
+    if (!newcwd) {
+      ERROR("cd: getcwd() failed!");
+      return;
+    }
+
+    if (strcmp(cwd, newcwd) == 0) { // if path same as current directory, we don't have to do anything
+      free(newcwd);
+      return;
+    }
+
     if (owd) free(owd);
     owd=cwd;
-    cwd= getcwd(NULL, 0);
+    cwd= newcwd;
   } else {
     ERROR("chdir() failed"); // warn
   }
