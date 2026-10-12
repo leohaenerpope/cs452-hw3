@@ -83,7 +83,7 @@ BIDEFN(cd) {
   if (!target) {
     target = getenv("HOME");
     if (!target) {
-      printf("cd: $HOME not set");
+      printf("cd: $HOME not set\n");
       return;
     }
   }
@@ -146,6 +146,8 @@ BIDEFN(cd) {
  * Specifies the built in commands the shell will be using
  */
 static int builtin(BIARGS) {
+  if (!r->file) return 0;
+
   typedef struct {
     char *s;
     void (*f)(BIARGS);
@@ -191,6 +193,7 @@ static void parse_redirection(CommandRep r) {
   while (r->argv[i] != NULL) {
     if (strcmp(r->argv[i], "<") == 0) {
       if (r->argv[i + 1] != NULL) {
+        if (r->rin) free(r->rin);
         r->rin = strdup(r->argv[i + 1]);
         free(r->argv[i]);
         free(r->argv[i + 1]);
@@ -207,6 +210,7 @@ static void parse_redirection(CommandRep r) {
       }
     } else if (strcmp(r->argv[i], ">") == 0) {
       if (r->argv[i + 1] != NULL) {
+        if (r->rout) free(r->rout);
         r->rout = strdup(r->argv[i + 1]);
         free(r->argv[i]);
         free(r->argv[i + 1]);
@@ -275,10 +279,12 @@ static void child(CommandRep r, int fg, int infd, int outfd) {
 
   Jobs jobs=newJobs();
   if (builtin(r,&eof,jobs))
-    return;
+    exit(0);
+  if (!r->argv[0]) exit(0);
   execvp(r->argv[0],r->argv);
   ERROR("execvp() failed");
-  exit(0);
+  perror(r->argv[0]);
+  exit(1);
 }
 
 extern pid_t execCommand(Command command, Pipeline pipeline, Jobs jobs,
@@ -292,6 +298,8 @@ extern pid_t execCommand(Command command, Pipeline pipeline, Jobs jobs,
     *jobbed=1;
     addJobs(jobs,pipeline);
   }
+  
+  fflush(stdout);
 
   int pid=fork();
   if (pid==-1) ERROR("fork() failed");

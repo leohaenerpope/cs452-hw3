@@ -38,12 +38,14 @@ static void execute(Pipeline pipeline, Jobs jobs, int *jobbed, int *eof) {
   int cmdamt = sizePipeline(r);
   if (cmdamt == 0) return;
 
+  // Pre pipeline execution setup
   pid_t pids[cmdamt];
   int pidsamt = 0;
 
   int infd = STDIN_FILENO;
   int pipefds[2];
 
+  // Execute commands in a pipeline
   for (int i=0; i<cmdamt && !*eof; i++) {
     Command cmd = deq_head_ith(r->processes, i);
 
@@ -72,7 +74,7 @@ static void execute(Pipeline pipeline, Jobs jobs, int *jobbed, int *eof) {
       waitpid(pids[i], &status, 0);
     }
   }
-  
+
 }
 
 extern void execPipeline(Pipeline pipeline, Jobs jobs, int *eof) {
